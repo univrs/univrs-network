@@ -11,7 +11,7 @@ interface UseOrchestratorOptions {
 
 // Environment configuration
 const ENV_WS_URL = import.meta.env.VITE_ORCHESTRATOR_WS_URL || import.meta.env.VITE_WS_URL || 'ws://localhost:9090/api/v1/events';
-const ENV_API_URL = import.meta.env.VITE_ORCHESTRATOR_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:9090/api';
+const ENV_API_URL = import.meta.env.VITE_ORCHESTRATOR_API_URL || import.meta.env.VITE_API_URL || 'http://localhost:9090';
 const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true' || import.meta.env.VITE_USE_MOCK_DATA === '1';
 
 export function useOrchestrator(options: UseOrchestratorOptions = {}) {
@@ -174,9 +174,9 @@ export function useOrchestrator(options: UseOrchestratorOptions = {}) {
 
       // Try to fetch from real API
       const [nodesRes, workloadsRes, statusRes] = await Promise.allSettled([
-        fetch(`${apiUrlRef.current}/v1/nodes`),
-        fetch(`${apiUrlRef.current}/v1/workloads`),
-        fetch(`${apiUrlRef.current}/v1/cluster/status`),
+        fetch(`${apiUrlRef.current}/api/v1/nodes`),
+        fetch(`${apiUrlRef.current}/api/v1/workloads`),
+        fetch(`${apiUrlRef.current}/api/v1/cluster/status`),
       ]);
 
       if (!isMountedRef.current) return;
@@ -268,7 +268,7 @@ export function useOrchestrator(options: UseOrchestratorOptions = {}) {
   // Cancel a workload
   const cancelWorkload = useCallback(async (workloadId: string) => {
     try {
-      const response = await fetch(`${apiUrlRef.current}/v1/workloads/${workloadId}/cancel`, {
+      const response = await fetch(`${apiUrlRef.current}/api/v1/workloads/${workloadId}/cancel`, {
         method: 'POST',
       });
       if (response.ok) {
@@ -297,7 +297,7 @@ export function useOrchestrator(options: UseOrchestratorOptions = {}) {
   // Retry a failed workload
   const retryWorkload = useCallback(async (workloadId: string) => {
     try {
-      const response = await fetch(`${apiUrlRef.current}/v1/workloads/${workloadId}/retry`, {
+      const response = await fetch(`${apiUrlRef.current}/api/v1/workloads/${workloadId}/retry`, {
         method: 'POST',
       });
       if (response.ok) {
