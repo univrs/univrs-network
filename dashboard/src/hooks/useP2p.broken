@@ -1,0 +1,21 @@
+// src/hooks/useP2P.ts
+import { useState } from 'react';
+
+export interface Peer {
+  id: string;
+  address: string;
+  connected: boolean;
+}
+
+export function useP2P() {
+  const [peers, setPeers] = useState<Peer[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
+
+  return {
+    peers,
+    isConnected,
+    peerCount: peers.length,
+  };
+}
+
+export default useP2P;
