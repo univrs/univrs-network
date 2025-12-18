@@ -202,13 +202,33 @@ export function useOrchestrator(options: UseOrchestratorOptions = {}) {
 
       let hasRealData = false;
 
-      // Process nodes
+      // Process nodes - normalize real API format to NodeHealth
       if (nodesRes.status === 'fulfilled' && nodesRes.value.ok) {
         const data = await nodesRes.value.json();
         const nodesArray = data.items || data.nodes || data || [];
         const nodesMap = new Map<string, NodeHealth>();
         for (const node of nodesArray) {
-          nodesMap.set(node.nodeId || node.id, node);
+          const nodeId = node.nodeId || node.id;
+          // Normalize real API node format to NodeHealth
+          const normalized: NodeHealth = {
+            nodeId: nodeId,
+            nodeName: node.nodeName || node.name || nodeId.slice(0, 8),
+            status: node.status, // Keep original status (Ready/NotReady or healthy/unhealthy)
+            address: node.address,
+            resources_capacity: node.resources_capacity,
+            resources_allocatable: node.resources_allocatable,
+            // Preserve mock fields if present
+            lastHeartbeat: node.lastHeartbeat,
+            uptime: node.uptime,
+            cpu: node.cpu,
+            memory: node.memory,
+            disk: node.disk,
+            network: node.network,
+            workloads: node.workloads,
+            version: node.version,
+            region: node.region,
+          };
+          nodesMap.set(nodeId, normalized);
         }
         setNodes(nodesMap);
         hasRealData = true;
@@ -226,10 +246,38 @@ export function useOrchestrator(options: UseOrchestratorOptions = {}) {
         hasRealData = true;
       }
 
-      // Process cluster status
+      // Process cluster status - normalize real API format to ClusterMetrics
       if (statusRes.status === 'fulfilled' && statusRes.value.ok) {
         const data = await statusRes.value.json();
-        setClusterMetrics(data);
+        // Map real API ClusterStatus format to our ClusterMetrics interface
+        const normalized: ClusterMetrics = {
+          clusterId: data.cluster_id || 'cluster-primary',
+          clusterName: data.cluster_name || 'Orchestrator Cluster',
+          totalNodes: data.total_nodes ?? 0,
+          healthyNodes: data.ready_nodes ?? 0,
+          degradedNodes: 0, // Real API doesn't have degraded status
+          offlineNodes: data.not_ready_nodes ?? 0,
+          totalWorkloads: data.total_workloads ?? 0,
+          runningWorkloads: data.running_instances ?? 0,
+          pendingWorkloads: data.pending_instances ?? 0,
+          completedWorkloads: data.completed_instances ?? 0,
+          failedWorkloads: data.failed_instances ?? 0,
+          resources: {
+            totalCpu: data.total_cpu_capacity ?? 0,
+            usedCpu: (data.total_cpu_capacity ?? 0) - (data.total_cpu_allocatable ?? 0),
+            totalMemory: (data.total_memory_mb ?? 0) * 1024 * 1024,
+            usedMemory: ((data.total_memory_mb ?? 0) - (data.total_memory_allocatable_mb ?? 0)) * 1024 * 1024,
+            totalStorage: (data.total_disk_mb ?? 0) * 1024 * 1024,
+            usedStorage: ((data.total_disk_mb ?? 0) - (data.total_disk_allocatable_mb ?? 0)) * 1024 * 1024,
+          },
+          throughput: data.throughput ?? {
+            workloadsPerHour: 0,
+            avgCompletionTime: 0,
+            successRate: 0,
+          },
+          lastUpdated: Date.now(),
+        };
+        setClusterMetrics(normalized);
         hasRealData = true;
       }
 

@@ -380,7 +380,7 @@ export function ClusterOverview({
                     <span className="text-soft-gray">Workloads/hour</span>
                   </div>
                   <span className="text-xl font-display font-bold text-glow-cyan">
-                    {metrics.throughput.workloadsPerHour}
+                    {metrics.throughput?.workloadsPerHour ?? 0}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -392,7 +392,7 @@ export function ClusterOverview({
                     <span className="text-soft-gray">Avg completion</span>
                   </div>
                   <span className="text-xl font-display font-bold text-spore-purple">
-                    {formatDuration(metrics.throughput.avgCompletionTime)}
+                    {formatDuration(metrics.throughput?.avgCompletionTime ?? 0)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -403,10 +403,10 @@ export function ClusterOverview({
                     <span className="text-soft-gray">Success rate</span>
                   </div>
                   <span className={`text-xl font-display font-bold ${
-                    metrics.throughput.successRate >= 95 ? 'text-green-400' :
-                    metrics.throughput.successRate >= 80 ? 'text-glow-gold' : 'text-red-400'
+                    (metrics.throughput?.successRate ?? 0) >= 95 ? 'text-green-400' :
+                    (metrics.throughput?.successRate ?? 0) >= 80 ? 'text-glow-gold' : 'text-red-400'
                   }`}>
-                    {metrics.throughput.successRate.toFixed(1)}%
+                    {(metrics.throughput?.successRate ?? 0).toFixed(1)}%
                   </span>
                 </div>
               </div>
