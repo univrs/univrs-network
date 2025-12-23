@@ -16,7 +16,28 @@ import { ClusterOverview } from '@/components/ClusterOverview';
 import type { NormalizedPeer, GeneratedIdentity, VouchRequest, CreditTransfer, Proposal, Vote } from '@/types';
 
 function App() {
-  const { connected, localPeerId, peers, messages, sendChat, graphData } = useP2P();
+  const {
+    connected,
+    localPeerId,
+    peers,
+    messages,
+    sendChat,
+    graphData,
+    // Economics state
+    creditLines,
+    creditTransfers,
+    proposals,
+    vouches,
+    resourceContributions,
+    resourcePool,
+    // Economics functions
+    sendVouch,
+    sendCreditLine,
+    sendCreditTransfer,
+    sendProposal,
+    sendVote,
+    sendResourceContribution,
+  } = useP2P();
   const { theme, toggleTheme } = useTheme();
   const {
     workloads,
@@ -60,9 +81,8 @@ function App() {
   // Handle vouching for a peer
   const handleVouch = useCallback((request: VouchRequest) => {
     console.log('Vouch request:', request);
-    // In production, this would send the vouch request via gossipsub
-    // For now, just log it
-  }, []);
+    sendVouch(request);
+  }, [sendVouch]);
 
   // Handle direct message to a peer
   const handleDirectMessage = useCallback((peerId: string) => {
@@ -73,26 +93,28 @@ function App() {
   // Handle credit line creation
   const handleCreateCreditLine = useCallback((peerId: string, limit: number) => {
     console.log('Create credit line:', { peerId, limit });
-    // In production, this would send via gossipsub
-  }, []);
+    sendCreditLine(peerId, limit);
+  }, [sendCreditLine]);
 
   // Handle credit transfer
   const handleCreditTransfer = useCallback((transfer: CreditTransfer) => {
     console.log('Credit transfer:', transfer);
-    // In production, this would send via gossipsub
-  }, []);
+    sendCreditTransfer(transfer.to, transfer.amount, transfer.memo);
+  }, [sendCreditTransfer]);
 
   // Handle proposal creation
   const handleCreateProposal = useCallback((proposal: Omit<Proposal, 'id' | 'status' | 'createdAt' | 'votesFor' | 'votesAgainst'>) => {
     console.log('Create proposal:', proposal);
-    // In production, this would create a proposal via gossipsub
-  }, []);
+    // expiresAt is milliseconds from epoch, convert to hours from now
+    const expiresInHours = Math.max(1, Math.floor((proposal.expiresAt - Date.now()) / (60 * 60 * 1000)));
+    sendProposal(proposal.title, proposal.description, expiresInHours);
+  }, [sendProposal]);
 
   // Handle voting on a proposal
   const handleVote = useCallback((vote: Vote) => {
     console.log('Vote:', vote);
-    // In production, this would send vote via gossipsub
-  }, []);
+    sendVote(vote.proposalId, vote.vote, vote.weight);
+  }, [sendVote]);
 
   return (
     <div className="min-h-screen bg-void text-mycelium-white">
@@ -297,6 +319,8 @@ function App() {
         <CreditPanel
           localPeerId={localPeerId}
           peers={peers}
+          creditLines={creditLines}
+          creditTransfers={creditTransfers}
           onCreateCreditLine={handleCreateCreditLine}
           onTransfer={handleCreditTransfer}
           onClose={() => setShowCredit(false)}
@@ -308,6 +332,7 @@ function App() {
         <GovernancePanel
           localPeerId={localPeerId}
           peers={peers}
+          proposals={proposals}
           onCreateProposal={handleCreateProposal}
           onVote={handleVote}
           onClose={() => setShowGovernance(false)}
@@ -319,6 +344,7 @@ function App() {
         <ResourcePanel
           localPeerId={localPeerId}
           peers={peers}
+          resourcePool={resourcePool}
           onClose={() => setShowResources(false)}
         />
       )}

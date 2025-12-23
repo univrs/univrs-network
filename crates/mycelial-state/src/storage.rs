@@ -276,7 +276,13 @@ impl SqliteStore {
     // Helper to convert row to PeerInfo
     fn row_to_peer_info(&self, row: &sqlx::sqlite::SqliteRow) -> Result<PeerInfo> {
         let peer_id: String = row.get("peer_id");
-        let public_key: Vec<u8> = row.get("public_key");
+        // public_key is now stored as base58 string (TEXT), with fallback for legacy BLOB
+        let public_key: String = row.try_get::<String, _>("public_key")
+            .unwrap_or_else(|_| {
+                // Fallback: try reading as BLOB and convert to base58
+                let bytes: Vec<u8> = row.get("public_key");
+                bs58::encode(&bytes).into_string()
+            });
         let display_name: Option<String> = row.get("display_name");
         let addresses_json: String = row.get("addresses_json");
         let first_seen: i64 = row.get("first_seen");
@@ -755,7 +761,7 @@ mod tests {
         let peer_id = PeerId("test_peer_123".to_string());
         let peer_info = PeerInfo {
             id: peer_id.clone(),
-            public_key: vec![1, 2, 3, 4],
+            public_key: "3mJr7AoUXx2Wqd5s8N4Df".to_string(), // base58 encoded
             addresses: vec!["/ip4/127.0.0.1/tcp/4001".to_string()],
             first_seen: Utc::now(),
             last_seen: Utc::now(),
@@ -790,7 +796,7 @@ mod tests {
         let sender = PeerId("sender_peer".to_string());
         let sender_info = PeerInfo {
             id: sender.clone(),
-            public_key: vec![1, 2, 3],
+            public_key: "2wMHpFAjZbL9GkXP8n3E1".to_string(), // base58 encoded
             addresses: vec![],
             first_seen: Utc::now(),
             last_seen: Utc::now(),
@@ -826,7 +832,7 @@ mod tests {
 
         let creditor_info = PeerInfo {
             id: creditor.clone(),
-            public_key: vec![1, 2, 3],
+            public_key: "2wMHpFAjZbL9GkXP8n3E1".to_string(), // base58 encoded
             addresses: vec![],
             first_seen: Utc::now(),
             last_seen: Utc::now(),
@@ -836,7 +842,7 @@ mod tests {
 
         let debtor_info = PeerInfo {
             id: debtor.clone(),
-            public_key: vec![4, 5, 6],
+            public_key: "4xNKpGBkZcM5HjYQ9o7F2".to_string(), // base58 encoded
             addresses: vec![],
             first_seen: Utc::now(),
             last_seen: Utc::now(),
@@ -898,11 +904,18 @@ mod tests {
         let store = create_test_store().await;
 
         // Create peers with different reputation scores
+        let test_keys = [
+            "2wMHpFAjZbL9GkXP8n3E0",
+            "2wMHpFAjZbL9GkXP8n3E1",
+            "2wMHpFAjZbL9GkXP8n3E2",
+            "2wMHpFAjZbL9GkXP8n3E3",
+            "2wMHpFAjZbL9GkXP8n3E4",
+        ];
         for i in 0..5 {
             let peer_id = PeerId(format!("peer_{}", i));
             let peer_info = PeerInfo {
                 id: peer_id.clone(),
-                public_key: vec![i as u8],
+                public_key: test_keys[i].to_string(), // base58 encoded
                 addresses: vec![],
                 first_seen: Utc::now(),
                 last_seen: Utc::now(),

@@ -4,6 +4,7 @@ import type { Proposal, Vote, NormalizedPeer } from '@/types';
 interface GovernancePanelProps {
   localPeerId: string | null;
   peers: Map<string, NormalizedPeer>;
+  proposals?: Proposal[];
   onCreateProposal?: (proposal: Omit<Proposal, 'id' | 'createdAt' | 'status' | 'votesFor' | 'votesAgainst'>) => void;
   onVote?: (vote: Vote) => void;
   onClose?: () => void;
@@ -57,6 +58,7 @@ function getMockProposals(peers: Map<string, NormalizedPeer>): Proposal[] {
 export function GovernancePanel({
   localPeerId,
   peers,
+  proposals: externalProposals,
   onCreateProposal,
   onVote,
   onClose,
@@ -69,7 +71,13 @@ export function GovernancePanel({
   const [newQuorum, setNewQuorum] = useState(20);
   const [userVotes, setUserVotes] = useState<Map<string, 'for' | 'against'>>(new Map());
 
-  const proposals = useMemo(() => getMockProposals(peers), [peers]);
+  // Use external data if provided, otherwise fall back to mock data
+  const proposals = useMemo(
+    () => externalProposals && externalProposals.length > 0
+      ? externalProposals
+      : getMockProposals(peers),
+    [externalProposals, peers]
+  );
 
   const filteredProposals = useMemo(() => {
     if (activeTab === 'active') return proposals.filter(p => p.status === 'active');

@@ -4,6 +4,7 @@ import type { NormalizedPeer, ResourceMetrics, ResourcePool } from '@/types';
 interface ResourcePanelProps {
   localPeerId: string | null;
   peers: Map<string, NormalizedPeer>;
+  resourcePool?: ResourcePool | null;
   onClose?: () => void;
 }
 
@@ -72,11 +73,16 @@ function formatDuration(seconds: number): string {
 export function ResourcePanel({
   localPeerId,
   peers,
+  resourcePool: externalResourcePool,
   onClose,
 }: ResourcePanelProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'my-resources' | 'network'>('overview');
 
-  const resourcePool = useMemo(() => getMockResourcePool(peers), [peers]);
+  // Use external data if provided, otherwise fall back to mock data
+  const resourcePool = useMemo(
+    () => externalResourcePool || getMockResourcePool(peers),
+    [externalResourcePool, peers]
+  );
   const localMetrics = useMemo(() =>
     localPeerId ? getMockResourceMetrics(localPeerId) : null,
   [localPeerId]);

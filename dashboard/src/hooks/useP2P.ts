@@ -1,5 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { ChatMessage, GraphNode, GraphLink, NormalizedPeer, Location } from '@/types';
+import type {
+  ChatMessage,
+  GraphNode,
+  GraphLink,
+  NormalizedPeer,
+  Location,
+  CreditLine,
+  CreditTransfer,
+  Proposal,
+  Vote,
+  VouchRequest,
+  ResourceContribution,
+  ResourcePool,
+} from '@/types';
 
 interface UseP2POptions {
   url?: string;
@@ -13,6 +26,13 @@ interface P2PState {
   localPeerId: string | null;
   peers: Map<string, NormalizedPeer>;
   messages: ChatMessage[];
+  // Economics state
+  creditLines: CreditLine[];
+  creditTransfers: CreditTransfer[];
+  proposals: Proposal[];
+  vouches: VouchRequest[];
+  resourceContributions: ResourceContribution[];
+  resourcePool: ResourcePool | null;
 }
 
 // Environment configuration - P2P node runs on port 8080
@@ -70,6 +90,13 @@ export function useP2P(options: UseP2POptions = {}) {
     localPeerId: null,
     peers: new Map(),
     messages: [],
+    // Economics initial state
+    creditLines: [],
+    creditTransfers: [],
+    proposals: [],
+    vouches: [],
+    resourceContributions: [],
+    resourcePool: null,
   });
 
   // Fetch peers from P2P node REST API
@@ -171,6 +198,98 @@ export function useP2P(options: UseP2POptions = {}) {
           messages: [...s.messages.slice(-99), (message.data || message) as ChatMessage],
         }));
         break;
+
+      // Economics message handlers
+      case 'vouch_request': {
+        const vouch = (message.data || message) as VouchRequest;
+        setState(s => ({
+          ...s,
+          vouches: [...s.vouches, vouch],
+        }));
+        console.log('Received vouch request:', vouch);
+        break;
+      }
+
+      case 'credit_line': {
+        const creditLine = (message.data || message) as CreditLine;
+        setState(s => {
+          // Update existing or add new credit line
+          const existingIndex = s.creditLines.findIndex(cl => cl.id === creditLine.id);
+          if (existingIndex >= 0) {
+            const updated = [...s.creditLines];
+            updated[existingIndex] = creditLine;
+            return { ...s, creditLines: updated };
+          }
+          return { ...s, creditLines: [...s.creditLines, creditLine] };
+        });
+        console.log('Received credit line:', creditLine);
+        break;
+      }
+
+      case 'credit_transfer': {
+        const transfer = (message.data || message) as CreditTransfer;
+        setState(s => ({
+          ...s,
+          creditTransfers: [...s.creditTransfers.slice(-99), transfer],
+        }));
+        console.log('Received credit transfer:', transfer);
+        break;
+      }
+
+      case 'proposal': {
+        const proposal = (message.data || message) as Proposal;
+        setState(s => {
+          // Update existing or add new proposal
+          const existingIndex = s.proposals.findIndex(p => p.id === proposal.id);
+          if (existingIndex >= 0) {
+            const updated = [...s.proposals];
+            updated[existingIndex] = proposal;
+            return { ...s, proposals: updated };
+          }
+          return { ...s, proposals: [...s.proposals, proposal] };
+        });
+        console.log('Received proposal:', proposal);
+        break;
+      }
+
+      case 'vote_cast': {
+        const vote = (message.data || message) as Vote;
+        // Update the proposal's vote counts
+        setState(s => {
+          const proposalIndex = s.proposals.findIndex(p => p.id === vote.proposalId);
+          if (proposalIndex >= 0) {
+            const updated = [...s.proposals];
+            const proposal = { ...updated[proposalIndex] };
+            if (vote.vote === 'for') {
+              proposal.votesFor += vote.weight;
+            } else {
+              proposal.votesAgainst += vote.weight;
+            }
+            updated[proposalIndex] = proposal;
+            return { ...s, proposals: updated };
+          }
+          return s;
+        });
+        console.log('Received vote:', vote);
+        break;
+      }
+
+      case 'resource_contribution': {
+        const contribution = (message.data || message) as ResourceContribution;
+        setState(s => ({
+          ...s,
+          resourceContributions: [...s.resourceContributions.slice(-99), contribution],
+        }));
+        console.log('Received resource contribution:', contribution);
+        break;
+      }
+
+      case 'resource_pool': {
+        const pool = (message.data || message) as ResourcePool;
+        setState(s => ({ ...s, resourcePool: pool }));
+        console.log('Received resource pool update:', pool);
+        break;
+      }
 
       default:
         console.log('Unhandled message type:', message.type);
@@ -289,6 +408,162 @@ export function useP2P(options: UseP2POptions = {}) {
     });
   }, []);
 
+  // Send vouch request
+  const sendVouch = useCallback((request: VouchRequest) => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket not open for vouch');
+      return;
+    }
+    const message = JSON.stringify({ type: 'send_vouch', data: request });
+    wsRef.current.send(message);
+    console.log('Sent vouch request:', request);
+
+    // Optimistically add to local state
+    setState(s => ({
+      ...s,
+      vouches: [...s.vouches, request],
+    }));
+  }, []);
+
+  // Create credit line
+  const sendCreditLine = useCallback((peerId: string, limit: number) => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket not open for credit line');
+      return;
+    }
+    const creditLine: CreditLine = {
+      id: `cl-${Date.now()}`,
+      peerId1: state.localPeerId || 'unknown',
+      peerId2: peerId,
+      limit,
+      balance: 0,
+      createdAt: Date.now(),
+    };
+    const message = JSON.stringify({ type: 'send_credit_line', data: creditLine });
+    wsRef.current.send(message);
+    console.log('Sent credit line:', creditLine);
+
+    // Optimistically add to local state
+    setState(s => ({
+      ...s,
+      creditLines: [...s.creditLines, creditLine],
+    }));
+  }, [state.localPeerId]);
+
+  // Send credit transfer
+  const sendCreditTransfer = useCallback((to: string, amount: number, memo?: string) => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket not open for credit transfer');
+      return;
+    }
+    const transfer: CreditTransfer = {
+      id: `tx-${Date.now()}`,
+      from: state.localPeerId || 'unknown',
+      to,
+      amount,
+      memo,
+      timestamp: Date.now(),
+    };
+    const message = JSON.stringify({ type: 'send_credit_transfer', data: transfer });
+    wsRef.current.send(message);
+    console.log('Sent credit transfer:', transfer);
+
+    // Optimistically add to local state
+    setState(s => ({
+      ...s,
+      creditTransfers: [...s.creditTransfers, transfer],
+    }));
+  }, [state.localPeerId]);
+
+  // Create governance proposal
+  const sendProposal = useCallback((title: string, description: string, expiresInHours: number = 72) => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket not open for proposal');
+      return;
+    }
+    const now = Date.now();
+    const proposal: Proposal = {
+      id: `prop-${now}`,
+      title,
+      description,
+      proposer: state.localPeerId || 'unknown',
+      createdAt: now,
+      expiresAt: now + expiresInHours * 60 * 60 * 1000,
+      status: 'active',
+      votesFor: 0,
+      votesAgainst: 0,
+      quorum: 0.5,
+    };
+    const message = JSON.stringify({ type: 'send_proposal', data: proposal });
+    wsRef.current.send(message);
+    console.log('Sent proposal:', proposal);
+
+    // Optimistically add to local state
+    setState(s => ({
+      ...s,
+      proposals: [...s.proposals, proposal],
+    }));
+  }, [state.localPeerId]);
+
+  // Cast vote on proposal
+  const sendVote = useCallback((proposalId: string, vote: 'for' | 'against', weight: number = 1) => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket not open for vote');
+      return;
+    }
+    const voteData: Vote = {
+      proposalId,
+      voterId: state.localPeerId || 'unknown',
+      vote,
+      weight,
+      timestamp: Date.now(),
+    };
+    const message = JSON.stringify({ type: 'send_vote', data: voteData });
+    wsRef.current.send(message);
+    console.log('Sent vote:', voteData);
+
+    // Optimistically update proposal in local state
+    setState(s => {
+      const proposalIndex = s.proposals.findIndex(p => p.id === proposalId);
+      if (proposalIndex >= 0) {
+        const updated = [...s.proposals];
+        const proposal = { ...updated[proposalIndex] };
+        if (vote === 'for') {
+          proposal.votesFor += weight;
+        } else {
+          proposal.votesAgainst += weight;
+        }
+        updated[proposalIndex] = proposal;
+        return { ...s, proposals: updated };
+      }
+      return s;
+    });
+  }, [state.localPeerId]);
+
+  // Send resource contribution
+  const sendResourceContribution = useCallback((resourceType: 'bandwidth' | 'storage' | 'compute', amount: number, unit: string) => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket not open for resource contribution');
+      return;
+    }
+    const contribution: ResourceContribution = {
+      peerId: state.localPeerId || 'unknown',
+      resourceType,
+      amount,
+      unit,
+      timestamp: Date.now(),
+    };
+    const message = JSON.stringify({ type: 'send_resource_contribution', data: contribution });
+    wsRef.current.send(message);
+    console.log('Sent resource contribution:', contribution);
+
+    // Optimistically add to local state
+    setState(s => ({
+      ...s,
+      resourceContributions: [...s.resourceContributions, contribution],
+    }));
+  }, [state.localPeerId]);
+
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -354,6 +629,13 @@ export function useP2P(options: UseP2POptions = {}) {
     resetConnection,
     graphData,
     refreshPeers: fetchPeers,
+    // Economics functions
+    sendVouch,
+    sendCreditLine,
+    sendCreditTransfer,
+    sendProposal,
+    sendVote,
+    sendResourceContribution,
   };
 }
 

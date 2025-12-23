@@ -57,7 +57,8 @@ pub enum StateUpdate {
 /// Peer information that can be synced
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeerInfoUpdate {
-    pub public_key: Vec<u8>,
+    /// Public key (base58 encoded string)
+    pub public_key: String,
     pub addresses: Vec<String>,
     pub name: Option<String>,
 }
@@ -474,7 +475,7 @@ mod tests {
         let update = StateUpdate::PeerUpdate {
             peer_id: "test_peer".to_string(),
             info: PeerInfoUpdate {
-                public_key: vec![1, 2, 3],
+                public_key: "3mJr7AoUXx2Wqd5s8N4Df".to_string(), // base58 encoded
                 addresses: vec!["/ip4/127.0.0.1/tcp/4001".to_string()],
                 name: Some("Test".to_string()),
             },
@@ -501,7 +502,7 @@ mod tests {
         // Create peer update
         let peer_info = PeerInfo {
             id: PeerId("test_peer".to_string()),
-            public_key: vec![1, 2, 3],
+            public_key: "3mJr7AoUXx2Wqd5s8N4Df".to_string(), // base58 encoded
             addresses: vec![],
             first_seen: Utc::now(),
             last_seen: Utc::now(),

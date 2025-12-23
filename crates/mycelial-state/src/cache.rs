@@ -447,7 +447,7 @@ mod tests {
 
         let peer_info = PeerInfo {
             id: PeerId("peer1".to_string()),
-            public_key: vec![1, 2, 3],
+            public_key: "2wMHpFAjZbL9GkXP8n3E1".to_string(), // base58 encoded
             addresses: vec![],
             first_seen: Utc::now(),
             last_seen: Utc::now(),

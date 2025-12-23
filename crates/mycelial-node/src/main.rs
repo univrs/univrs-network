@@ -197,9 +197,10 @@ async fn handle_network_event(event: NetworkEvent, state: &AppState, local_peer_
             let short_id = &peer_id.to_base58()[..8.min(peer_id.to_base58().len())];
 
             // Create peer info
+            // Use peer_id's base58 as public_key (PeerId is derived from public key)
             let peer_info = PeerInfo {
                 id: core_peer_id.clone(),
-                public_key: vec![],
+                public_key: peer_id.to_base58(),
                 addresses: vec![],
                 first_seen: chrono::Utc::now(),
                 last_seen: chrono::Utc::now(),

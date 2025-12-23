@@ -4,6 +4,8 @@ import type { CreditLine, CreditTransfer, NormalizedPeer } from '@/types';
 interface CreditPanelProps {
   localPeerId: string | null;
   peers: Map<string, NormalizedPeer>;
+  creditLines?: CreditLine[];
+  creditTransfers?: CreditTransfer[];
   onCreateCreditLine?: (peerId: string, limit: number) => void;
   onTransfer?: (transfer: CreditTransfer) => void;
   onClose?: () => void;
@@ -57,6 +59,8 @@ function getMockTransactions(): CreditTransfer[] {
 export function CreditPanel({
   localPeerId,
   peers,
+  creditLines: externalCreditLines,
+  creditTransfers: externalCreditTransfers,
   onCreateCreditLine,
   onTransfer,
   onClose,
@@ -69,12 +73,20 @@ export function CreditPanel({
   const [transferAmount, setTransferAmount] = useState(10);
   const [transferMemo, setTransferMemo] = useState('');
 
+  // Use external data if provided, otherwise fall back to mock data
   const creditLines = useMemo(
-    () => getMockCreditLines(localPeerId, peers),
-    [localPeerId, peers]
+    () => externalCreditLines && externalCreditLines.length > 0
+      ? externalCreditLines
+      : getMockCreditLines(localPeerId, peers),
+    [externalCreditLines, localPeerId, peers]
   );
 
-  const transactions = useMemo(() => getMockTransactions(), []);
+  const transactions = useMemo(
+    () => externalCreditTransfers && externalCreditTransfers.length > 0
+      ? externalCreditTransfers
+      : getMockTransactions(),
+    [externalCreditTransfers]
+  );
 
   const availablePeers = useMemo(() => {
     const existingPeerIds = new Set(creditLines.map(cl =>
